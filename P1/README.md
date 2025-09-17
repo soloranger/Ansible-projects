@@ -27,13 +27,15 @@ It creates a limited user account that can only control interface status (`shutd
 
 ## 📂 Project Structure
 
+```
 .
 ├── inventory/
 │   └── hosts.ini          # List of all switches
 ├── playbooks/
 │   └── apply.yml
 └── README.md
-
+└── ansible.cfg
+```
 
 ## 📂 Inventory (hosts.ini)
 
