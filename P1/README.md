@@ -25,7 +25,7 @@ It creates a limited user account that can only control interface status (`shutd
    ```
 4. Assign a management IP address to the correct VLAN interface and configure a default gateway.
 
-# 📂 Project Structure
+## 📂 Project Structure
 
 .
 ├── inventory/
@@ -35,7 +35,7 @@ It creates a limited user account that can only control interface status (`shutd
 └── README.md
 
 
-# 📂 Inventory (hosts.ini)
+## 📂 Inventory (hosts.ini)
 
 All switches are listed inside inventory/hosts.ini:
 
@@ -58,7 +58,7 @@ ansible_become_password=EnableSecret123
 * Common variables like connection method, network OS, and credentials are defined in [switches:vars].
 
 
-# ▶️ Running the Playbook
+## ▶️ Running the Playbook
 
 Run on all switches:
 ```
@@ -71,7 +71,7 @@ Run on a single switch:
 ansible-playbook -i inventory/hosts.ini playbooks/apply.yml -l sw11 -vv
 ```
 
-# ⚙️ What the Playbook Does
+## ⚙️ What the Playbook Does
 
 * Creates a limited user (default: ops) with privilege level 2.
 
