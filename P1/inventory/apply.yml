@@ -1,0 +1,114 @@
+- name: Apply restricted interface privileges (shutdown/no shutdown) on all switches
+  hosts: switches
+  gather_facts: no
+  serial: 5
+  any_errors_fatal: true
+
+  vars:
+    limited_user: hwit
+    limited_level: 2
+    limited_user_plain_secret: "*IT_2190hw#"   # پسورد کاربر محدود (Plain)
+
+    ios_save_when: modified   # فقط وقتی تغییر کرد، save کن
+
+  pre_tasks:
+    - name: PRECHECK | grab current username/privilege lines
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config | include ^username {{ limited_user }}\\s"
+          - "show privilege"
+          - "show running-config | include ^privilege exec"
+          - "show running-config | include ^privilege configure"
+          - "show running-config | include ^privilege interface"
+      register: pre
+
+    - name: PRECHECK | save to local file
+      ansible.builtin.copy:
+        content: |
+          ==== username line ====
+          {{ pre.stdout[0] | default('') }}
+
+          ==== show privilege ====
+          {{ pre.stdout[1] | default('') }}
+
+          ==== privilege exec ====
+          {{ pre.stdout[2] | default('') }}
+
+          ==== privilege configure ====
+          {{ pre.stdout[3] | default('') }}
+
+          ==== privilege interface ====
+          {{ pre.stdout[4] | default('') }}
+        dest: "precheck-{{ inventory_hostname }}.txt"
+      delegate_to: localhost
+
+    - name: PRECHECK | does limited user exist?
+      ansible.builtin.set_fact:
+        user_exists: "{{ (pre.stdout[0] | default('')) | length > 0 }}"
+        user_has_correct_level: "{{ ('privilege ' ~ limited_level) in (pre.stdout[0] | default('')) }}"
+
+  tasks:
+    - name: Ensure limited user exists (create with secret if missing)
+      cisco.ios.ios_config:
+        lines:
+          - "username {{ limited_user }} privilege {{ limited_level }} secret {{ limited_user_plain_secret }}"
+        save_when: "{{ ios_save_when }}"
+      when: not user_exists
+
+    - name: Ensure limited user has correct privilege (without touching password)
+      cisco.ios.ios_config:
+        lines:
+          - "username {{ limited_user }} privilege {{ limited_level }}"
+        save_when: "{{ ios_save_when }}"
+      when: user_exists and (not user_has_correct_level)
+
+    # (اختیاری ولی امن): اگر قبلاً اشتباهاً در context دیگری privilege داده شده، ریست کن
+    - name: SAFETY | reset wrong mappings if any (safe even if defaults)
+      cisco.ios.ios_config:
+        lines:
+          - "privilege configure reset interface"
+          - "privilege interface reset shutdown"
+          - "privilege interface reset no shutdown"
+      ignore_errors: yes
+
+    - name: Map privileges to enter config and interface context
+      cisco.ios.ios_config:
+        lines:
+          - "privilege exec      level {{ limited_level }} configure terminal"
+          - "privilege configure level {{ limited_level }} interface"
+        save_when: "{{ ios_save_when }}"
+
+    - name: Allow shutdown / no shutdown / description in interface mode
+      cisco.ios.ios_config:
+        lines:
+          - "privilege interface level {{ limited_level }} shutdown"
+          - "privilege interface level {{ limited_level }} no shutdown"
+          - "privilege interface level {{ limited_level }} description"
+        save_when: "{{ ios_save_when }}"
+
+  post_tasks:
+    - name: POSTCHECK | verify config lines
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config | include ^username {{ limited_user }}\\s"
+          - "show running-config | include ^privilege exec"
+          - "show running-config | include ^privilege configure"
+          - "show running-config | include ^privilege interface"
+      register: post
+
+    - name: POSTCHECK | save to local file
+      ansible.builtin.copy:
+        content: |
+          ==== username line ====
+          {{ post.stdout[0] | default('') }}
+
+          ==== privilege exec ====
+          {{ post.stdout[1] | default('') }}
+
+          ==== privilege configure ====
+          {{ post.stdout[2] | default('') }}
+
+          ==== privilege interface ====
+          {{ post.stdout[3] | default('') }}
+        dest: "postcheck-{{ inventory_hostname }}.txt"
+      delegate_to: localhost
